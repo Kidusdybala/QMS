@@ -30,6 +30,25 @@ describe("security configuration", () => {
     expect(() => validateSecurityConfig()).toThrow("WEB_ORIGIN");
   });
 
+  it("rejects automatic database sync in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SESSION_SECRET", "7bc5517f28c7213fbc7ad2fb1045cd8f");
+    vi.stubEnv("WEB_ORIGIN", "https://qms.example.com");
+    vi.stubEnv("QMS_AUTO_DB_SYNC", "true");
+
+    expect(() => validateSecurityConfig()).toThrow("QMS_AUTO_DB_SYNC");
+  });
+
+  it("allows automatic database sync in production only with an explicit override", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SESSION_SECRET", "7bc5517f28c7213fbc7ad2fb1045cd8f");
+    vi.stubEnv("WEB_ORIGIN", "https://qms.example.com");
+    vi.stubEnv("QMS_AUTO_DB_SYNC", "true");
+    vi.stubEnv("QMS_ALLOW_AUTO_DB_SYNC_IN_PRODUCTION", "true");
+
+    expect(() => validateSecurityConfig()).not.toThrow();
+  });
+
   it("uses secure cookies in production", () => {
     vi.stubEnv("NODE_ENV", "production");
 

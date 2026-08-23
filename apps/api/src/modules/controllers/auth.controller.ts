@@ -27,7 +27,9 @@ export class AuthController {
   }
 
   @Post("logout")
-  logout(@Res({ passthrough: true }) response: Response) {
+  @UseGuards(SessionGuard)
+  async logout(@CurrentUser() user: SessionUser, @Res({ passthrough: true }) response: Response) {
+    await this.auth.logout(user.id);
     response.clearCookie(SESSION_COOKIE_NAME, sessionCookieClearOptions());
     return { ok: true };
   }

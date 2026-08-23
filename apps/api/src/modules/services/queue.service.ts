@@ -70,6 +70,7 @@ export class QueueService {
     });
     if (!service) throw new NotFoundException("Service not found");
     if (service.branchId !== input.branchId) throw new BadRequestException("Service does not belong to this branch");
+    if (!service.isActive) throw new BadRequestException("Service is not active");
 
     const source = input.source ?? "WALK_IN";
     const scheduledFor = input.scheduledFor;
@@ -77,6 +78,7 @@ export class QueueService {
 
     const issuedAt = scheduledFor ?? new Date();
     const date = sequenceDate(issuedAt);
+    // Sequence upserts serialize on the row lock, so the default isolation level is sufficient here.
     const ticket = await this.prisma.$transaction(async (tx) => {
       const sequence = await tx.ticketSequence.upsert({
         where: { branchId_serviceId_date: { branchId: input.branchId, serviceId: input.serviceId, date } },
@@ -111,9 +113,10 @@ export class QueueService {
       });
 
       return created;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
 
-    await this.notifications.sendTicketCreated({
+    // Fire-and-forget: notifications must not block ticket issuance. Failures are logged inside the service.
+    void this.notifications.sendTicketCreated({
       customerEmail: input.customerEmail,
       customerPhone: input.customerPhone,
       code: ticket.code,
@@ -121,7 +124,7 @@ export class QueueService {
       ticketUrl: `${process.env.WEB_ORIGIN ?? "http://localhost:5173"}/ticket/${ticket.id}`,
       settings: service.branch.organization
     });
-    this.gateway.emitQueueEvent("ticket.created", ticket);
+    this.emitTicket("ticket.created", ticket);
     return ticket;
   }
 
@@ -207,33 +210,40 @@ export class QueueService {
     await this.assertServiceInOrganization(serviceId, organizationId, branchId);
     if (counterId) await this.assertCounterInOrganization(counterId, organizationId, branchId);
     const now = new Date();
+    // Guarded claim: updateMany only succeeds if the ticket is still waiting, so a concurrent
+    // caller gets count 0 and moves on to the next ticket instead of double-calling.
     const ticket = await this.prisma.$transaction(async (tx) => {
-      const next = await tx.ticket.findFirst({
-        where: { branchId, serviceId, status: { in: ["WAITING", "TRANSFERRED"] }, ...activeQueueWhere(now) },
-        orderBy: { issuedAt: "asc" }
-      });
-      if (!next) return null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const next = await tx.ticket.findFirst({
+          where: { branchId, serviceId, status: { in: ["WAITING", "TRANSFERRED"] }, ...activeQueueWhere(now) },
+          orderBy: { issuedAt: "asc" }
+        });
+        if (!next) return null;
 
-      const updated = await tx.ticket.update({
-        where: { id: next.id },
-        data: {
-          status: "CALLED",
-          counterId,
-          checkedInAt: next.source === "APPOINTMENT" && !next.checkedInAt ? now : undefined,
-          calledAt: new Date(),
-          events: { create: { status: "CALLED", note: "Called by staff" } }
-        },
-        include: { service: true, counter: true }
-      });
+        const claimed = await tx.ticket.updateMany({
+          where: { id: next.id, status: { in: ["WAITING", "TRANSFERRED"] } },
+          data: {
+            status: "CALLED",
+            counterId,
+            checkedInAt: next.source === "APPOINTMENT" && !next.checkedInAt ? now : undefined,
+            calledAt: new Date()
+          }
+        });
+        if (claimed.count === 0) continue;
 
-      await tx.auditEvent.create({
-        data: { action: "ticket.called", entity: "ticket", entityId: updated.id, metadata: { counterId } }
-      });
+        await tx.ticketEvent.create({
+          data: { ticketId: next.id, status: "CALLED", note: "Called by staff" }
+        });
+        await tx.auditEvent.create({
+          data: { action: "ticket.called", entity: "ticket", entityId: next.id, metadata: { counterId } }
+        });
 
-      return updated;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        return tx.ticket.findUniqueOrThrow({ where: { id: next.id }, include: { service: true, counter: true } });
+      }
+      return null;
+    });
 
-    if (ticket) this.gateway.emitQueueEvent("ticket.called", ticket);
+    if (ticket) this.emitTicket("ticket.called", ticket);
     return ticket;
   }
 
@@ -250,7 +260,7 @@ export class QueueService {
       include: { service: true, counter: true }
     });
 
-    this.gateway.emitQueueEvent("ticket.updated", ticket);
+    this.emitTicket("ticket.updated", ticket);
     return ticket;
   }
 
@@ -266,7 +276,7 @@ export class QueueService {
       include: { service: true, counter: true }
     });
 
-    this.gateway.emitQueueEvent("ticket.called", ticket);
+    this.emitTicket("ticket.called", ticket);
     return ticket;
   }
 
@@ -301,9 +311,9 @@ export class QueueService {
         },
         include: { service: true, counter: true }
       });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
 
-    this.gateway.emitQueueEvent("ticket.updated", ticket);
+    this.emitTicket("ticket.updated", ticket);
     return ticket;
   }
 
@@ -323,11 +333,15 @@ export class QueueService {
 
     return {
       branchId,
-      waiting: tickets.filter((ticket) => ["WAITING", "TRANSFERRED"].includes(ticket.status)),
-      called: tickets.filter((ticket) => ticket.status === "CALLED"),
-      serving: tickets.filter((ticket) => ticket.status === "SERVING"),
+      waiting: tickets.filter((ticket) => ["WAITING", "TRANSFERRED"].includes(ticket.status)).map((ticket) => this.publicTicket(ticket)),
+      called: tickets.filter((ticket) => ticket.status === "CALLED").map((ticket) => this.publicTicket(ticket)),
+      serving: tickets.filter((ticket) => ticket.status === "SERVING").map((ticket) => this.publicTicket(ticket)),
       updatedAt: new Date().toISOString()
     };
+  }
+
+  private emitTicket(event: string, ticket: PublicTicketInput) {
+    this.gateway.emitQueueEvent(event, this.publicTicket(ticket));
   }
 
   private publicTicket(ticket: PublicTicketInput) {

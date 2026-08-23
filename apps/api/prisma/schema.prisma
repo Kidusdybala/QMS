@@ -86,14 +86,15 @@ model Counter {
 }
 
 model User {
-  id             String       @id @default(cuid())
-  organizationId String
-  email          String       @unique
-  name           String
-  passwordHash   String
-  role           UserRole
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                     String       @id @default(cuid())
+  organizationId         String
+  email                  String       @unique
+  name                   String
+  passwordHash           String
+  role                   UserRole
+  sessionsInvalidatedAt  DateTime?
+  createdAt              DateTime     @default(now())
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model Ticket {
@@ -132,6 +133,8 @@ model TicketEvent {
   note      String?
   createdAt DateTime     @default(now())
   ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
 }
 
 model TicketSequence {
@@ -154,4 +157,7 @@ model AuditEvent {
   entityId  String
   metadata  Json?
   createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
 }

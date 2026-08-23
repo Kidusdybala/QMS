@@ -47,6 +47,10 @@ export function validateSecurityConfig() {
   if (!webOrigin || !webOrigin.startsWith("https://")) {
     throw new Error("WEB_ORIGIN must be an HTTPS origin in production.");
   }
+
+  if (process.env.QMS_AUTO_DB_SYNC === "true" && process.env.QMS_ALLOW_AUTO_DB_SYNC_IN_PRODUCTION !== "true") {
+    throw new Error("QMS_AUTO_DB_SYNC must not be enabled in production (set QMS_ALLOW_AUTO_DB_SYNC_IN_PRODUCTION=true to override intentionally).");
+  }
 }
 
 export function applyHttpSecurity(app: INestApplication) {
@@ -68,6 +72,7 @@ function securityHeaders(_request: Request, response: Response, next: NextFuncti
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 }
 

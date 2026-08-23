@@ -28,6 +28,8 @@ test("customer ticket can be called by staff and shown on the display", async ({
   const staff = await browser.newPage();
   await staff.goto("/staff");
   await expect(staff).toHaveTitle("Staff | QMS");
+  await staff.getByLabel("Email").fill("admin@example.com");
+  await staff.getByLabel("Password").fill("admin12345");
   await staff.getByRole("button", { name: "Sign in" }).click();
   await expect(staff.getByText("Admin")).toBeVisible();
   await expect(staff.getByRole("link", { name: "Staff" })).toHaveAttribute("aria-current", "page");

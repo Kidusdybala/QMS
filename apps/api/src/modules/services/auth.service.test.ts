@@ -40,4 +40,20 @@ describe("AuthService", () => {
     expect((blockedError as HttpException).getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
     expect(prisma.user.findUnique).toHaveBeenCalledTimes(5);
   });
+
+  it("rejects session tokens issued before sessions were invalidated", async () => {
+    vi.mocked(verify).mockResolvedValue(true);
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ ...user, sessionsInvalidatedAt: null })
+      }
+    };
+    const service = new AuthService(prisma as never);
+
+    const { token } = await service.login("admin@example.com", "correct-password", "203.0.113.10");
+    await expect(service.verifySessionToken(token)).resolves.toMatchObject({ id: "user-1" });
+
+    prisma.user.findUnique.mockResolvedValue({ ...user, sessionsInvalidatedAt: new Date(Date.now() + 60_000) });
+    await expect(service.verifySessionToken(token)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
 });

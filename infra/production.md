@@ -75,7 +75,7 @@ Before deploying, create a production-specific Compose file or override with the
 - Keep `QMS_AUTO_DB_SYNC=false` in production and run schema/seed commands intentionally during deployment.
 - Put a reverse proxy such as Caddy, Nginx, Traefik, or a managed load balancer in front of `web` and `api`.
 
-Development and demo Compose files opt into automatic `pnpm db:push` and `pnpm db:seed` with `QMS_AUTO_DB_SYNC=true`. Production deployments should leave this disabled and run data changes as explicit release steps.
+Development and demo Compose files opt into automatic `pnpm db:push` and `pnpm db:seed` with `QMS_AUTO_DB_SYNC=true`. Production deployments should leave this disabled and run data changes as explicit release steps. When `NODE_ENV=production`, the API refuses to boot with `QMS_AUTO_DB_SYNC=true` unless `QMS_ALLOW_AUTO_DB_SYNC_IN_PRODUCTION=true` is set explicitly (the demo Compose file sets this override on purpose).
 
 ## Security Controls
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import { hash } from "argon2";
 import { IsBoolean, IsEmail, IsEnum, IsInt, IsISO8601, IsOptional, IsString, Matches, Max, Min, MinLength } from "class-validator";
@@ -310,6 +310,9 @@ export class AdminController {
 
   @Post("users")
   async createUser(@CurrentUser() user: SessionUser, @Body() body: CreateUserDto) {
+    if (body.role === "OWNER" && user.role !== "OWNER") {
+      throw new ForbiddenException("Only an owner can grant the owner role");
+    }
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: user.organizationId } });
     const created = await this.prisma.user.create({
       data: {
@@ -331,11 +334,24 @@ export class AdminController {
 
   @Patch("users/:userId")
   async updateUser(@CurrentUser() actor: SessionUser, @Param("userId") userId: string, @Body() body: UpdateUserDto) {
-    await this.assertUserInOrganization(userId, actor.organizationId);
-    const data: { name?: string; role?: UserRole; passwordHash?: string } = {};
+    const target = await this.assertUserInOrganization(userId, actor.organizationId);
+    if (target.role === "OWNER" && actor.role !== "OWNER") {
+      throw new ForbiddenException("Only an owner can modify an owner account");
+    }
+    if (body.role === "OWNER" && actor.role !== "OWNER") {
+      throw new ForbiddenException("Only an owner can grant the owner role");
+    }
+    if (userId === actor.id && body.role && body.role !== actor.role) {
+      throw new ForbiddenException("You cannot change your own role");
+    }
+    const data: { name?: string; role?: UserRole; passwordHash?: string; sessionsInvalidatedAt?: Date } = {};
     if (body.name) data.name = body.name;
     if (body.role) data.role = body.role;
-    if (body.password) data.passwordHash = await hash(body.password);
+    if (body.password) {
+      data.passwordHash = await hash(body.password);
+      // Changing a password revokes all existing sessions for that user.
+      data.sessionsInvalidatedAt = new Date();
+    }
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -374,8 +390,9 @@ export class AdminController {
   private async assertUserInOrganization(userId: string, organizationId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, organizationId },
-      select: { id: true }
+      select: { id: true, role: true }
     });
     if (!user) throw new NotFoundException("User not found");
+    return user;
   }
 }

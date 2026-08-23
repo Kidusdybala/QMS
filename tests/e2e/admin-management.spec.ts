@@ -16,6 +16,8 @@ test("admin can edit service, counter, and user records", async ({ page }) => {
   await page.goto("/admin");
   await expect(page).toHaveTitle("Admin | QMS");
   await expect(page.getByRole("link", { name: "Admin" })).toHaveAttribute("aria-current", "page");
+  await page.getByLabel("Email").fill("admin@example.com");
+  await page.getByLabel("Password").fill("admin12345");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Admin")).toBeVisible();
   const branchesPanel = page.locator(".panel", { has: page.getByRole("heading", { name: "Branches" }) });

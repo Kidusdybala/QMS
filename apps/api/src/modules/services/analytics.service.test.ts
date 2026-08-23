@@ -61,7 +61,7 @@ describe("AnalyticsService", () => {
               lt: new Date("2026-06-30T00:00:00.000Z")
             }
           },
-          orderBy: { issuedAt: "asc" }
+          select: { status: true, issuedAt: true, calledAt: true }
         }
       },
       orderBy: { nameEn: "asc" }
@@ -96,5 +96,12 @@ describe("AnalyticsService", () => {
         averageWaitMinutes: 0
       }
     ]);
+  });
+
+  it("rejects date ranges beyond the maximum", async () => {
+    const service = new AnalyticsService({} as never);
+
+    await expect(service.summary("org-1", "2020-01-01", "2026-01-01")).rejects.toThrow("366");
+    await expect(service.ticketsCsv("org-1", "2020-01-01", "2026-01-01")).rejects.toThrow("366");
   });
 });

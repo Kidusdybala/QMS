@@ -6,6 +6,7 @@ import { QueueService } from "../services/queue.service.js";
 
 const MAX_PUBLIC_TICKETS = 20;
 const PUBLIC_TICKET_WINDOW_MS = 5 * 60 * 1000;
+const MAX_PUBLIC_TICKET_KEYS = 10_000;
 
 type PublicTicketAttempt = {
   count: number;
@@ -57,6 +58,7 @@ export class TicketsController {
   private assertPublicTicketAllowed(clientId: string) {
     const now = Date.now();
     const existing = this.publicTicketAttempts.get(clientId);
+    if (!existing && this.publicTicketAttempts.size >= MAX_PUBLIC_TICKET_KEYS) this.sweepPublicTicketAttempts(now);
     const attempt = existing && now < existing.resetAt
       ? { count: existing.count + 1, resetAt: existing.resetAt }
       : { count: 1, resetAt: now + PUBLIC_TICKET_WINDOW_MS };
@@ -64,6 +66,17 @@ export class TicketsController {
 
     if (attempt.count > MAX_PUBLIC_TICKETS) {
       throw new HttpException("Too many tickets created. Try again later.", HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
+  private sweepPublicTicketAttempts(now: number) {
+    for (const [key, attempt] of this.publicTicketAttempts) {
+      if (now >= attempt.resetAt) this.publicTicketAttempts.delete(key);
+    }
+    // Map iteration order is insertion order: evict oldest entries if still over the cap.
+    for (const key of this.publicTicketAttempts.keys()) {
+      if (this.publicTicketAttempts.size < MAX_PUBLIC_TICKET_KEYS) break;
+      this.publicTicketAttempts.delete(key);
     }
   }
 }

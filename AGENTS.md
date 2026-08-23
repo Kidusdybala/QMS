@@ -42,4 +42,4 @@ Use `Queue Management System` for the repository/project title and plain "queue 
 
 ## Security & Configuration Tips
 
-Never commit `.env` files, credentials, database dumps, or generated secrets. Rotate `SESSION_SECRET` before production use, keep `WEB_ORIGIN` exact, and leave `QMS_AUTO_DB_SYNC=false` in production unless intentionally running a demo-style reset.
+Never commit `.env` files, credentials, database dumps, or generated secrets. Rotate `SESSION_SECRET` before production use, keep `WEB_ORIGIN` exact, and leave `QMS_AUTO_DB_SYNC=false` in production unless intentionally running a demo-style reset. The API refuses to boot in production with `QMS_AUTO_DB_SYNC=true` unless `QMS_ALLOW_AUTO_DB_SYNC_IN_PRODUCTION=true` is set explicitly (only the demo Compose file does this).

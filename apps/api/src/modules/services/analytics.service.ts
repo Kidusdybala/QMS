@@ -1,6 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import type { Ticket, TicketStatus } from "@prisma/client";
 import { PrismaService } from "./prisma.service.js";
+
+const MAX_RANGE_DAYS = 366;
 
 type TicketWithRelations = Awaited<ReturnType<AnalyticsService["ticketsInRange"]>>[number];
 
@@ -145,6 +147,9 @@ export class AnalyticsService {
     const fallbackStart = startOfToday();
     const rangeStart = parseDate(start, fallbackStart);
     const rangeEnd = end ? addDays(parseDate(end, fallbackStart), 1) : addDays(rangeStart, 1);
+    if (rangeEnd.getTime() - rangeStart.getTime() > MAX_RANGE_DAYS * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(`Date range must be ${MAX_RANGE_DAYS} days or fewer`);
+    }
     return { start: rangeStart, end: rangeEnd };
   }
 
@@ -164,7 +169,7 @@ export class AnalyticsService {
         services: true,
         tickets: {
           where: { issuedAt: { gte: start, lt: end } },
-          orderBy: { issuedAt: "asc" }
+          select: { status: true, issuedAt: true, calledAt: true }
         }
       },
       orderBy: { nameEn: "asc" }

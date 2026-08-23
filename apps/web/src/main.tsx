@@ -186,8 +186,9 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
 
 function LoginPanel({ onLogin }: { onLogin: (user: User) => void }) {
   const { t } = useTranslation();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("admin12345");
+  // Demo credentials are pre-filled in development only, never in production bundles.
+  const [email, setEmail] = useState(import.meta.env.DEV ? "admin@example.com" : "");
+  const [password, setPassword] = useState(import.meta.env.DEV ? "admin12345" : "");
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent) {

@@ -7,6 +7,7 @@ import { PrismaService } from "./prisma.service.js";
 
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const MAX_LOGIN_ATTEMPT_KEYS = 10_000;
 
 type LoginAttempt = {
   failures: number;
@@ -30,8 +31,9 @@ export class AuthService {
     }
 
     this.loginAttempts.delete(attemptKey);
-    const expiresAt = Date.now() + SESSION_COOKIE_MAX_AGE_MS;
-    const token = this.sign(`${user.id}.${expiresAt}.${randomBytes(16).toString("hex")}`);
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + SESSION_COOKIE_MAX_AGE_MS;
+    const token = this.sign(`${user.id}.${expiresAt}.${issuedAt}.${randomBytes(16).toString("hex")}`);
     return {
       token,
       user: { id: user.id, email: user.email, name: user.name, role: user.role }
@@ -42,14 +44,16 @@ export class AuthService {
     if (!token) throw new UnauthorizedException("Missing session");
 
     const parts = token.split(".");
-    if (parts.length !== 4) throw new UnauthorizedException("Invalid session");
+    if (parts.length !== 5) throw new UnauthorizedException("Invalid session");
 
-    const [userId, expiresAtValue, nonce, signature] = parts;
-    if (!userId || !expiresAtValue || !nonce || !signature) throw new UnauthorizedException("Invalid session");
+    const [userId, expiresAtValue, issuedAtValue, nonce, signature] = parts;
+    if (!userId || !expiresAtValue || !issuedAtValue || !nonce || !signature) throw new UnauthorizedException("Invalid session");
     const expiresAt = Number(expiresAtValue);
-    if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) throw new UnauthorizedException("Session expired");
+    const issuedAt = Number(issuedAtValue);
+    if (!Number.isFinite(expiresAt) || !Number.isFinite(issuedAt)) throw new UnauthorizedException("Invalid session");
+    if (Date.now() > expiresAt) throw new UnauthorizedException("Session expired");
 
-    const value = `${userId}.${expiresAtValue}.${nonce}`;
+    const value = `${userId}.${expiresAtValue}.${issuedAtValue}.${nonce}`;
     const expected = this.signature(value);
     const expectedBuffer = Buffer.from(expected);
     const actualBuffer = Buffer.from(signature);
@@ -59,9 +63,19 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException("Invalid session");
+    if (user.sessionsInvalidatedAt && issuedAt <= user.sessionsInvalidatedAt.getTime()) {
+      throw new UnauthorizedException("Session expired");
+    }
 
     const { passwordHash: _passwordHash, ...safeUser } = user;
     return safeUser;
+  }
+
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { sessionsInvalidatedAt: new Date() }
+    });
   }
 
   private sign(value: string) {
@@ -97,6 +111,18 @@ export class AuthService {
     const attempt = existing && now < existing.resetAt
       ? { failures: existing.failures + 1, resetAt: existing.resetAt }
       : { failures: 1, resetAt: now + LOGIN_WINDOW_MS };
+    if (!existing && this.loginAttempts.size >= MAX_LOGIN_ATTEMPT_KEYS) this.sweepLoginAttempts(now);
     this.loginAttempts.set(key, attempt);
+  }
+
+  private sweepLoginAttempts(now: number) {
+    for (const [key, attempt] of this.loginAttempts) {
+      if (now >= attempt.resetAt) this.loginAttempts.delete(key);
+    }
+    // Map iteration order is insertion order: evict oldest entries if still over the cap.
+    for (const key of this.loginAttempts.keys()) {
+      if (this.loginAttempts.size < MAX_LOGIN_ATTEMPT_KEYS) break;
+      this.loginAttempts.delete(key);
+    }
   }
 }

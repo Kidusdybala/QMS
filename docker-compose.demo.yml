@@ -33,6 +33,8 @@ services:
       WEB_ORIGIN: https://${DEMO_WEB_HOST:?Set DEMO_WEB_HOST in .env.demo}
       TRUST_PROXY: "true"
       QMS_AUTO_DB_SYNC: "true"
+      # The demo intentionally re-syncs schema and seed data on every boot.
+      QMS_ALLOW_AUTO_DB_SYNC_IN_PRODUCTION: "true"
     depends_on:
       postgres:
         condition: service_healthy

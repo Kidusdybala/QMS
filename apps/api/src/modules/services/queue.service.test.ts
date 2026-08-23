@@ -78,6 +78,7 @@ describe("QueueService appointments", () => {
           branchId: "branch-1",
           prefix: "A",
           nameEn: "General",
+          isActive: true,
           branch: { organization: {} }
         })
       },
@@ -86,7 +87,7 @@ describe("QueueService appointments", () => {
     const gateway = { emitQueueEvent: vi.fn() };
     const notifications = { sendTicketCreated: vi.fn().mockResolvedValue(undefined) };
 
-    const ticket = await new QueueService(prisma as never, gateway as never, notifications as never).scheduleAppointment({
+    await new QueueService(prisma as never, gateway as never, notifications as never).scheduleAppointment({
       branchId: "branch-1",
       serviceId: "service-1",
       scheduledFor,
@@ -118,7 +119,13 @@ describe("QueueService appointments", () => {
         metadata: { code: "A-005", scheduledFor: "2026-06-29T09:30:00.000Z" }
       })
     });
-    expect(gateway.emitQueueEvent).toHaveBeenCalledWith("ticket.created", ticket);
+    expect(gateway.emitQueueEvent).toHaveBeenCalledTimes(1);
+    const [emittedEvent, emittedPayload] = gateway.emitQueueEvent.mock.calls[0] as [string, Record<string, unknown>];
+    expect(emittedEvent).toBe("ticket.created");
+    expect(emittedPayload).toMatchObject({ id: "ticket-1", code: "A-005" });
+    expect(emittedPayload).not.toHaveProperty("customerName");
+    expect(emittedPayload).not.toHaveProperty("customerPhone");
+    expect(emittedPayload).not.toHaveProperty("customerEmail");
   });
 
   it("calls walk-ins and due appointments from one blended queue", async () => {
@@ -129,7 +136,11 @@ describe("QueueService appointments", () => {
     const tx = {
       ticket: {
         findFirst: vi.fn().mockResolvedValue(next),
-        update: vi.fn().mockResolvedValue({ id: "ticket-1", code: "A-001", service: {}, counter: null })
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "ticket-1", code: "A-001", service: {}, counter: null })
+      },
+      ticketEvent: {
+        create: vi.fn().mockResolvedValue({})
       },
       auditEvent: {
         create: vi.fn().mockResolvedValue({})
@@ -171,16 +182,118 @@ describe("QueueService appointments", () => {
       },
       orderBy: { issuedAt: "asc" }
     });
-    expect(tx.ticket.update).toHaveBeenCalledWith({
-      where: { id: "ticket-1" },
+    expect(tx.ticket.updateMany).toHaveBeenCalledWith({
+      where: { id: "ticket-1", status: { in: ["WAITING", "TRANSFERRED"] } },
       data: expect.objectContaining({
         status: "CALLED",
         counterId: "counter-1",
         checkedInAt: new Date("2026-06-29T10:00:00.000Z")
-      }),
-      include: { service: true, counter: true }
+      })
+    });
+    expect(tx.ticketEvent.create).toHaveBeenCalledWith({
+      data: { ticketId: "ticket-1", status: "CALLED", note: "Called by staff" }
     });
 
     vi.useRealTimers();
+  });
+
+  it("moves to the next ticket when a concurrent caller claims the first one", async () => {
+    const first = { id: "ticket-1", source: "WALK_IN", checkedInAt: null };
+    const second = { id: "ticket-2", source: "WALK_IN", checkedInAt: null };
+    const tx = {
+      ticket: {
+        findFirst: vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second),
+        updateMany: vi.fn().mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "ticket-2", code: "A-002", service: {}, counter: null })
+      },
+      ticketEvent: {
+        create: vi.fn().mockResolvedValue({})
+      },
+      auditEvent: {
+        create: vi.fn().mockResolvedValue({})
+      }
+    };
+    const prisma = {
+      service: { findFirst: vi.fn().mockResolvedValue({ id: "service-1" }) },
+      $transaction: vi.fn().mockImplementation(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx))
+    };
+    const gateway = { emitQueueEvent: vi.fn() };
+    const notifications = { sendTicketCreated: vi.fn() };
+
+    const ticket = await new QueueService(prisma as never, gateway as never, notifications as never)
+      .callNext("branch-1", "service-1", "org-1");
+
+    expect(ticket).toMatchObject({ id: "ticket-2", code: "A-002" });
+    expect(tx.ticket.findFirst).toHaveBeenCalledTimes(2);
+    expect(tx.ticketEvent.create).toHaveBeenCalledTimes(1);
+    expect(tx.ticketEvent.create).toHaveBeenCalledWith({
+      data: { ticketId: "ticket-2", status: "CALLED", note: "Called by staff" }
+    });
+  });
+
+  it("redacts customer contact fields from the public display snapshot", async () => {
+    const issuedAt = new Date("2026-06-29T08:00:00.000Z");
+    const rawTicket = {
+      id: "ticket-1",
+      branchId: "branch-1",
+      serviceId: "service-1",
+      counterId: null,
+      source: "WALK_IN",
+      number: 1,
+      code: "A-001",
+      status: "WAITING",
+      customerName: "Mona",
+      customerPhone: "+97455550000",
+      customerEmail: "mona@example.com",
+      scheduledFor: null,
+      checkedInAt: null,
+      createdAt: issuedAt,
+      issuedAt,
+      calledAt: null,
+      startedAt: null,
+      completedAt: null,
+      service: { id: "service-1", prefix: "A", nameEn: "General", nameAr: "عام" },
+      counter: null
+    };
+    const prisma = {
+      ticket: {
+        findMany: vi.fn().mockResolvedValue([rawTicket])
+      }
+    };
+    const gateway = { emitQueueEvent: vi.fn() };
+    const notifications = { sendTicketCreated: vi.fn() };
+
+    const snapshot = await new QueueService(prisma as never, gateway as never, notifications as never).snapshot("branch-1");
+
+    expect(snapshot.waiting).toHaveLength(1);
+    expect(snapshot.waiting[0]).toMatchObject({ id: "ticket-1", code: "A-001", status: "WAITING" });
+    for (const list of [snapshot.waiting, snapshot.called, snapshot.serving]) {
+      for (const ticket of list) {
+        expect(ticket).not.toHaveProperty("customerName");
+        expect(ticket).not.toHaveProperty("customerPhone");
+        expect(ticket).not.toHaveProperty("customerEmail");
+      }
+    }
+  });
+
+  it("rejects ticket creation for inactive services", async () => {
+    const prisma = {
+      service: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "service-1",
+          branchId: "branch-1",
+          prefix: "A",
+          nameEn: "General",
+          isActive: false,
+          branch: { organization: {} }
+        })
+      }
+    };
+    const gateway = { emitQueueEvent: vi.fn() };
+    const notifications = { sendTicketCreated: vi.fn() };
+
+    const service = new QueueService(prisma as never, gateway as never, notifications as never);
+
+    await expect(service.createTicket({ branchId: "branch-1", serviceId: "service-1" })).rejects.toThrow("Service is not active");
   });
 });
