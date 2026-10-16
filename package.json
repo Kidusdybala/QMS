@@ -30,6 +30,13 @@
       "nanoid": ">=3.3.18",
       "postcss": ">=8.5.23",
       "deepmerge-ts": ">=8.0.0"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "prisma"
+    ]
   }
 }

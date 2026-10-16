@@ -12,7 +12,7 @@ export type TicketStatus = (typeof ticketStatuses)[number];
 
 export type TicketSource = "WALK_IN" | "APPOINTMENT";
 
-export type Locale = "en" | "ar";
+export type Locale = "en" | "ar" | "am";
 
 export interface QueueTicket {
   id: string;

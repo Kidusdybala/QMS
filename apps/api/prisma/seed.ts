@@ -42,17 +42,6 @@ async function main() {
     }
   });
 
-  await prisma.service.upsert({
-    where: { branchId_prefix: { branchId: branch.id, prefix: "B" } },
-    update: {},
-    create: {
-      branchId: branch.id,
-      nameEn: "Priority Service",
-      nameAr: "خدمة الأولوية",
-      prefix: "B"
-    }
-  });
-
   await prisma.counter.upsert({
     where: { branchId_nameEn: { branchId: branch.id, nameEn: "Counter 1" } },
     update: {},

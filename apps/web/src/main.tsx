@@ -136,7 +136,10 @@ function App() {
         user={user}
         branch={branch}
         path={path}
-        onLanguage={() => void i18n.changeLanguage(i18n.language === "ar" ? "en" : "ar")}
+        onLanguage={() => {
+          const cycle: Record<string, string> = { en: "ar", ar: "am", am: "en" };
+          void i18n.changeLanguage(cycle[i18n.language] ?? "en");
+        }}
       />
       {message ? <div className="toast" role="status">{message}</div> : null}
       <main id="main-content" tabIndex={-1}>
@@ -160,6 +163,10 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
     { href: "/admin", label: t("admin"), active: path.startsWith("/admin") }
   ];
 
+  // Label shown on the language switcher button — name of the NEXT language in the cycle.
+  const nextLangLabel: Record<string, string> = { en: "عربي", ar: "አማርኛ", am: "EN" };
+  const langLabel = nextLangLabel[i18n.language] ?? "EN";
+
   return (
     <header className="app-shell">
       <a className="brand" href="/">
@@ -176,8 +183,9 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
       <div className="shell-actions">
         <span>{branchName || t("mainBranch")}</span>
         {user ? <span>{user.name}</span> : null}
-        <button className="icon-button" onClick={onLanguage} aria-label={t("changeLanguage")}>
-          <Languages size={18} aria-hidden="true" />
+        <button className="lang-button" onClick={onLanguage} aria-label={t("changeLanguage")}>
+          <Languages size={16} aria-hidden="true" />
+          <span>{langLabel}</span>
         </button>
       </div>
     </header>
@@ -231,6 +239,8 @@ function KioskPage({ branch, setMessage }: AppContext) {
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const services = branch?.services ?? [];
+  // Auto-select the single service when there is only one configured.
+  const singleService = services.length === 1 ? services[0] : null;
   const joinUrl = `${window.location.origin}/join/${branch?.slug ?? "main"}`;
   const ticketUrl = createdTicket ? `${window.location.origin}/ticket/${createdTicket.id}` : joinUrl;
 
@@ -253,7 +263,7 @@ function KioskPage({ branch, setMessage }: AppContext) {
   return (
     <section className="page-grid kiosk-layout">
       <div className="hero-panel">
-        <h1>{t("chooseService")}</h1>
+        <h1>{singleService ? localName(singleService, i18n.language) : t("chooseService")}</h1>
         <p>{t("subtitle")}</p>
         <div className="customer-fields">
           <label>
@@ -269,14 +279,22 @@ function KioskPage({ branch, setMessage }: AppContext) {
             <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} autoComplete="tel" />
           </label>
         </div>
-        <div className="service-list kiosk-services">
-          {services.map((service) => (
-            <button key={service.id} onClick={() => void createTicket(service.id)}>
-              <strong>{localName(service, i18n.language)}</strong>
-              <span>{service.prefix}</span>
+        {singleService ? (
+          <div className="kiosk-get-ticket">
+            <button className="get-ticket-button" onClick={() => void createTicket(singleService.id)}>
+              {t("getTicket")}
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="service-list kiosk-services">
+            {services.map((service) => (
+              <button key={service.id} onClick={() => void createTicket(service.id)}>
+                <strong>{localName(service, i18n.language)}</strong>
+                <span>{service.prefix}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="ticket-preview" aria-live="polite">
         {createdTicket ? (
@@ -285,6 +303,7 @@ function KioskPage({ branch, setMessage }: AppContext) {
             <strong>{createdTicket.code}</strong>
             <QrPanel value={ticketUrl} label={t("scanTrackPlace")} />
             <a href={`/ticket/${createdTicket.id}`}>{t("trackTicket")}</a>
+            <button className="print-button" onClick={() => window.print()}>{t("printTicket")}</button>
           </>
         ) : (
           <>
@@ -294,6 +313,20 @@ function KioskPage({ branch, setMessage }: AppContext) {
           </>
         )}
       </div>
+
+      {/* Print-only slip — invisible on screen, shown only when window.print() is called */}
+      {createdTicket ? (
+        <div className="print-slip" aria-hidden="true">
+          <div className="print-slip-inner">
+            <p className="print-org">{localName(branch, i18n.language) || t("mainBranch")}</p>
+            <p className="print-service-name">{localName(createdTicket.service ?? singleService, i18n.language)}</p>
+            <div className="print-code">{createdTicket.code}</div>
+            {customerName ? <p className="print-customer">{customerName}</p> : null}
+            <p className="print-date">{new Date().toLocaleString()}</p>
+            <p className="print-url">{ticketUrl}</p>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
