@@ -162,11 +162,16 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
     { href: "/admin", label: t("admin"), active: path.startsWith("/admin") }
   ];
 
+  const [pendingLanguage, setPendingLanguage] = useState<string>(i18n.language);
   const languageOptions: { value: string; label: string }[] = [
     { value: "en", label: "English" },
     { value: "ar", label: "العربية" },
     { value: "am", label: "አማርኛ" }
   ];
+
+  useEffect(() => {
+    setPendingLanguage(i18n.language);
+  }, [i18n.language]);
 
   return (
     <header className="app-shell">
@@ -184,17 +189,27 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
       <div className="shell-actions">
         <span>{branchName || t("mainBranch")}</span>
         {user ? <span>{user.name}</span> : null}
-        <div className="lang-switcher">
+        <div className="lang-switcher" role="group" aria-label={t("changeLanguage")}>
           <Languages size={16} aria-hidden="true" />
-          <select
-            aria-label={t("changeLanguage")}
-            value={i18n.language}
-            onChange={(event) => onLanguage(event.target.value)}
+          {languageOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`lang-option ${pendingLanguage === option.value ? "is-active" : ""}`}
+              aria-pressed={pendingLanguage === option.value}
+              onClick={() => setPendingLanguage(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="lang-apply primary-button"
+            onClick={() => onLanguage(pendingLanguage)}
+            disabled={pendingLanguage === i18n.language}
           >
-            {languageOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+            {t("apply")}
+          </button>
         </div>
       </div>
     </header>

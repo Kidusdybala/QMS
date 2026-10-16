@@ -162,19 +162,50 @@ nav a[aria-current="page"] {
 
 .lang-switcher {
   align-items: center;
+  background: #1e6b4d;
+  border-radius: 8px;
   color: #ffffff;
   display: inline-flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
 }
 
-.lang-switcher select {
+.lang-option {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  min-width: 52px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.lang-option:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.lang-option.is-active {
+  background: #ffffff;
+  color: #123c2c;
+}
+
+.lang-apply {
   background: #ffffff;
   border: 0;
   border-radius: 6px;
   color: #123c2c;
   cursor: pointer;
   font-weight: 700;
-  padding: 8px 8px;
+  margin-left: 4px;
+  padding: 8px 12px;
+}
+
+.lang-apply:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .mini-button {
