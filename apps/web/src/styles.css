@@ -329,8 +329,10 @@ nav a[aria-current="page"] {
 
 .ticket-preview strong,
 .ticket-page strong {
-  font-size: clamp(48px, 10vw, 92px);
+  font-size: clamp(20px, 8vw, 48px);
   line-height: 1;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .ticket-preview a {
@@ -856,11 +858,13 @@ textarea {
   .print-code {
     border: 2px solid #000;
     border-radius: 6px;
-    font-size: 32px;
+    font-size: 24px;
     font-weight: 900;
-    letter-spacing: 3px;
+    letter-spacing: 1px;
     margin: 0 auto 8px;
     padding: 6px;
+    overflow-wrap: anywhere;
+    max-width: 100%;
   }
 
   .print-customer {
