@@ -278,6 +278,7 @@ function KioskPage({ branch, setMessage }: AppContext) {
       });
       setCreatedTicket(ticket);
       setMessage(t("ticketCreated", { code: ticket.code }));
+      window.print();
     } finally {
       setIsCreating(false);
     }
