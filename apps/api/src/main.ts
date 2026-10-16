@@ -8,9 +8,7 @@ import { applyHttpSecurity, validateSecurityConfig } from "./modules/security.js
 async function bootstrap() {
   validateSecurityConfig();
   const app = await NestFactory.create(AppModule);
-  const origin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
-
-  app.enableCors({ origin, credentials: true });
+  app.enableCors({ origin: true, credentials: true });
   applyHttpSecurity(app);
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

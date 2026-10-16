@@ -82,8 +82,12 @@ function originProtection(request: Request, response: Response, next: NextFuncti
     return;
   }
 
-  const allowedOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
+  const allowedOrigin = process.env.WEB_ORIGIN;
   const requestOrigin = request.header("origin") ?? refererOrigin(request.header("referer"));
+  if (!isProduction() && (!allowedOrigin || !requestOrigin)) {
+    next();
+    return;
+  }
   if (requestOrigin === allowedOrigin || (!requestOrigin && !isProduction())) {
     next();
     return;
