@@ -805,8 +805,17 @@ textarea {
 
 /* ── Print media query ────────────────────────────────────────────── */
 @media print {
-  /* Hide the entire UI — only the slip should print */
-  body > * {
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+  }
+
+  /* Hide all UI chrome except the print slip */
+  .app-shell,
+  .toast,
+  .skip-link,
+  .page-grid > :not(.print-slip) {
     display: none !important;
   }
 
@@ -857,6 +866,11 @@ textarea {
   .print-customer {
     font-size: 13px;
     font-weight: 700;
+    margin: 0 0 6px;
+  }
+
+  .print-phone {
+    font-size: 12px;
     margin: 0 0 6px;
   }
 
