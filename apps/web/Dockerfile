@@ -9,7 +9,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY packages/domain/package.json packages/domain/package.json
 COPY packages/ui/package.json packages/ui/package.json
 
-RUN pnpm install --frozen-lockfile --filter @qms/web --filter @qms/domain --filter @qms/ui
+RUN pnpm install --frozen-lockfile --dev --filter @qms/web --filter @qms/domain --filter @qms/ui
 
 COPY apps/web apps/web
 COPY packages/domain packages/domain
