@@ -282,6 +282,12 @@ nav a[aria-current="page"] {
   text-align: start;
 }
 
+.service-list button.is-active {
+  background: #1e6b4d;
+  border-color: #1e6b4d;
+  color: #ffffff;
+}
+
 .primary-button {
   background: #1e6b4d;
   color: #ffffff;

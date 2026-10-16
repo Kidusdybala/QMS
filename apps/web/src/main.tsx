@@ -261,20 +261,29 @@ function KioskPage({ branch, setMessage }: AppContext) {
   const [createdTicket, setCreatedTicket] = useState<TicketRecord | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const services = branch?.services ?? [];
-  // Auto-select the single service when there is only one configured.
   const singleService = services.length === 1 ? services[0] : null;
   const joinUrl = `${window.location.origin}/join/${branch?.slug ?? "main"}`;
   const ticketUrl = createdTicket ? `${window.location.origin}/ticket/${createdTicket.id}` : joinUrl;
 
-  async function createTicket(serviceId: string) {
-    if (!branch) return;
+  useEffect(() => {
+    if (singleService) setSelectedServiceId(singleService.id);
+  }, [singleService]);
+
+  async function createTicket() {
+    if (!branch || !selectedServiceId) return;
     setIsCreating(true);
     try {
       const ticket = await api<TicketRecord>("/tickets", {
         method: "POST",
-        body: { branchId: branch.id, serviceId, customerName: customerName.trim() || undefined, customerPhone: customerPhone.trim() || undefined }
+        body: {
+          branchId: branch.id,
+          serviceId: selectedServiceId,
+          customerName: customerName.trim() || undefined,
+          customerPhone: customerPhone.trim() || undefined
+        }
       });
       setCreatedTicket(ticket);
       setMessage(t("ticketCreated", { code: ticket.code }));
@@ -285,7 +294,8 @@ function KioskPage({ branch, setMessage }: AppContext) {
 
   function downloadReceipt() {
     if (!createdTicket) return;
-    const receipt = buildReceiptText(t, createdTicket, singleService, branch, customerName, customerPhone, i18n.language);
+    const service = services.find((s) => s.id === createdTicket.service?.id) ?? singleService;
+    const receipt = buildReceiptText(t, createdTicket, service, branch, customerName, customerPhone, i18n.language);
     const blob = new Blob([receipt], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -302,7 +312,7 @@ function KioskPage({ branch, setMessage }: AppContext) {
       <div className="hero-panel">
         <h1>{singleService ? localName(singleService, i18n.language) : t("chooseService")}</h1>
         <p>{t("subtitle")}</p>
-        <form className="customer-form" onSubmit={(event) => { event.preventDefault(); if (singleService) void createTicket(singleService.id); }}>
+        <form className="customer-form" onSubmit={(event) => { event.preventDefault(); void createTicket(); }}>
           <label>
             {t("name")}
             <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} minLength={2} placeholder={t("yourNamePlaceholder")} />
@@ -311,22 +321,26 @@ function KioskPage({ branch, setMessage }: AppContext) {
             {t("phone")}
             <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder={t("phonePlaceholder")} />
           </label>
-          {singleService ? (
-            <button className="get-ticket-button" type="submit" disabled={isCreating}>
-              {isCreating ? t("creatingTicket") : t("getTicket")}
-            </button>
+          {!singleService && services.length > 0 ? (
+            <div className="service-list kiosk-services">
+              {services.map((service) => (
+                <button
+                  key={service.id}
+                  type="button"
+                  onClick={() => setSelectedServiceId(service.id)}
+                  className={selectedServiceId === service.id ? "is-active" : ""}
+                  disabled={isCreating}
+                >
+                  <strong>{localName(service, i18n.language)}</strong>
+                  <span>{service.prefix}</span>
+                </button>
+              ))}
+            </div>
           ) : null}
+          <button className="get-ticket-button" type="submit" disabled={isCreating || !selectedServiceId || services.length === 0}>
+            {isCreating ? t("creatingTicket") : t("getTicket")}
+          </button>
         </form>
-        {!singleService ? (
-          <div className="service-list kiosk-services">
-            {services.map((service) => (
-              <button key={service.id} onClick={() => void createTicket(service.id)} disabled={isCreating}>
-                <strong>{localName(service, i18n.language)}</strong>
-                <span>{service.prefix}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
       <div className="ticket-preview" aria-live="polite">
         {createdTicket ? (
