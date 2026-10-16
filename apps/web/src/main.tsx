@@ -8,9 +8,9 @@ import { io } from "socket.io-client";
 import "./i18n.js";
 import "./styles.css";
 
-type Service = { id: string; nameEn: string; nameAr: string; prefix: string; isActive?: boolean };
-type Counter = { id: string; nameEn: string; nameAr: string; isOpen?: boolean };
-type Branch = { id: string; slug: string; nameEn: string; nameAr: string; services: Service[]; counters: Counter[] };
+type Service = { id: string; nameEn: string; nameAr: string; nameAm?: string; prefix: string; isActive?: boolean };
+type Counter = { id: string; nameEn: string; nameAr: string; nameAm?: string; isOpen?: boolean };
+type Branch = { id: string; slug: string; nameEn: string; nameAr: string; nameAm?: string; services: Service[]; counters: Counter[] };
 type User = { id: string; email: string; name: string; role: string };
 type TicketRecord = {
   id: string;
@@ -54,7 +54,7 @@ type AnalyticsSummary = {
     completionRate: number;
     noShowRate: number;
   };
-  services: { serviceId: string; prefix: string; nameEn: string; nameAr: string; issued: number; completed: number; noShow: number; averageWaitMinutes: number; averageServiceMinutes: number }[];
+  services: { serviceId: string; prefix: string; nameEn: string; nameAr: string; nameAm?: string; issued: number; completed: number; noShow: number; averageWaitMinutes: number; averageServiceMinutes: number }[];
   branchDashboard: {
     branchId: string;
     slug: string;
@@ -136,9 +136,8 @@ function App() {
         user={user}
         branch={branch}
         path={path}
-        onLanguage={() => {
-          const cycle: Record<string, string> = { en: "ar", ar: "am", am: "en" };
-          void i18n.changeLanguage(cycle[i18n.language] ?? "en");
+        onLanguage={(language) => {
+          void i18n.changeLanguage(language);
         }}
       />
       {message ? <div className="toast" role="status">{message}</div> : null}
@@ -153,7 +152,7 @@ function App() {
   );
 }
 
-function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: Branch | null; path: string; onLanguage: () => void }) {
+function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: Branch | null; path: string; onLanguage: (language: string) => void }) {
   const { i18n, t } = useTranslation();
   const branchName = localName(branch, i18n.language);
   const navItems = [
@@ -163,9 +162,11 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
     { href: "/admin", label: t("admin"), active: path.startsWith("/admin") }
   ];
 
-  // Label shown on the language switcher button — name of the NEXT language in the cycle.
-  const nextLangLabel: Record<string, string> = { en: "عربي", ar: "አማርኛ", am: "EN" };
-  const langLabel = nextLangLabel[i18n.language] ?? "EN";
+  const languageOptions: { value: string; label: string }[] = [
+    { value: "en", label: "English" },
+    { value: "ar", label: "العربية" },
+    { value: "am", label: "አማርኛ" }
+  ];
 
   return (
     <header className="app-shell">
@@ -183,10 +184,18 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
       <div className="shell-actions">
         <span>{branchName || t("mainBranch")}</span>
         {user ? <span>{user.name}</span> : null}
-        <button className="lang-button" onClick={onLanguage} aria-label={t("changeLanguage")}>
+        <div className="lang-switcher">
           <Languages size={16} aria-hidden="true" />
-          <span>{langLabel}</span>
-        </button>
+          <select
+            aria-label={t("changeLanguage")}
+            value={i18n.language}
+            onChange={(event) => onLanguage(event.target.value)}
+          >
+            {languageOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
     </header>
   );
@@ -235,9 +244,6 @@ function LoginPanel({ onLogin }: { onLogin: (user: User) => void }) {
 function KioskPage({ branch, setMessage }: AppContext) {
   const { i18n, t } = useTranslation();
   const [createdTicket, setCreatedTicket] = useState<TicketRecord | null>(null);
-  const [customerName, setCustomerName] = useState("");
-  const [customerEmail, setCustomerEmail] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
   const services = branch?.services ?? [];
   // Auto-select the single service when there is only one configured.
   const singleService = services.length === 1 ? services[0] : null;
@@ -248,13 +254,7 @@ function KioskPage({ branch, setMessage }: AppContext) {
     if (!branch) return;
     const ticket = await api<TicketRecord>("/tickets", {
       method: "POST",
-      body: {
-        branchId: branch.id,
-        serviceId,
-        ...(customerName ? { customerName } : {}),
-        ...(customerEmail ? { customerEmail } : {}),
-        ...(customerPhone ? { customerPhone } : {})
-      }
+      body: { branchId: branch.id, serviceId }
     });
     setCreatedTicket(ticket);
     setMessage(t("ticketCreated", { code: ticket.code }));
@@ -265,20 +265,6 @@ function KioskPage({ branch, setMessage }: AppContext) {
       <div className="hero-panel">
         <h1>{singleService ? localName(singleService, i18n.language) : t("chooseService")}</h1>
         <p>{t("subtitle")}</p>
-        <div className="customer-fields">
-          <label>
-            {t("name")}
-            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} autoComplete="name" />
-          </label>
-          <label>
-            {t("email")}
-            <input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} autoComplete="email" />
-          </label>
-          <label>
-            {t("phone")}
-            <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} autoComplete="tel" />
-          </label>
-        </div>
         {singleService ? (
           <div className="kiosk-get-ticket">
             <button className="get-ticket-button" onClick={() => void createTicket(singleService.id)}>
@@ -321,7 +307,6 @@ function KioskPage({ branch, setMessage }: AppContext) {
             <p className="print-org">{localName(branch, i18n.language) || t("mainBranch")}</p>
             <p className="print-service-name">{localName(createdTicket.service ?? singleService, i18n.language)}</p>
             <div className="print-code">{createdTicket.code}</div>
-            {customerName ? <p className="print-customer">{customerName}</p> : null}
             <p className="print-date">{new Date().toLocaleString()}</p>
             <p className="print-url">{ticketUrl}</p>
           </div>
@@ -508,7 +493,7 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
     event.preventDefault();
     const created = await api<Branch>("/admin/branches", {
       method: "POST",
-      body: { nameEn: branchName, nameAr: branchName, slug: branchSlug }
+      body: { nameEn: branchName, nameAr: branchName, nameAm: branchName, slug: branchSlug }
     });
     setBranchName("");
     setBranchSlug("");
@@ -521,7 +506,7 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
     if (!selectedBranch) return;
     await api<Service>(`/admin/branches/${selectedBranch.id}/services`, {
       method: "POST",
-      body: { nameEn: serviceName, nameAr: serviceName, prefix: servicePrefix.toUpperCase() }
+      body: { nameEn: serviceName, nameAr: serviceName, nameAm: serviceName, prefix: servicePrefix.toUpperCase() }
     });
     setServiceName("");
     setServicePrefix("");
@@ -534,7 +519,7 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
     if (!selectedBranch) return;
     await api<Counter>(`/admin/branches/${selectedBranch.id}/counters`, {
       method: "POST",
-      body: { nameEn: counterName, nameAr: counterName }
+      body: { nameEn: counterName, nameAr: counterName, nameAm: counterName }
     });
     setCounterName("");
     setMessage(t("counterCreated"));
@@ -896,7 +881,7 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
   );
 }
 
-function ServiceEditor({ service, issued, onSave }: { service: Service; issued: number; onSave: (serviceId: string, body: { nameEn: string; nameAr: string; isActive: boolean }) => Promise<void> }) {
+function ServiceEditor({ service, issued, onSave }: { service: Service; issued: number; onSave: (serviceId: string, body: { nameEn: string; nameAr: string; nameAm: string; isActive: boolean }) => Promise<void> }) {
   const { t } = useTranslation();
   const [name, setName] = useState(service.nameEn);
   const [isActive, setIsActive] = useState(service.isActive !== false);
@@ -908,7 +893,7 @@ function ServiceEditor({ service, issued, onSave }: { service: Service; issued: 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    await onSave(service.id, { nameEn: name, nameAr: name, isActive });
+    await onSave(service.id, { nameEn: name, nameAr: name, nameAm: name, isActive });
   }
 
   return (
@@ -930,7 +915,7 @@ function ServiceEditor({ service, issued, onSave }: { service: Service; issued: 
   );
 }
 
-function CounterEditor({ counter, onSave }: { counter: Counter; onSave: (counterId: string, body: { nameEn: string; nameAr: string; isOpen: boolean }) => Promise<void> }) {
+function CounterEditor({ counter, onSave }: { counter: Counter; onSave: (counterId: string, body: { nameEn: string; nameAr: string; nameAm: string; isOpen: boolean }) => Promise<void> }) {
   const { t } = useTranslation();
   const [name, setName] = useState(counter.nameEn);
   const [isOpen, setIsOpen] = useState(counter.isOpen !== false);
@@ -942,7 +927,7 @@ function CounterEditor({ counter, onSave }: { counter: Counter; onSave: (counter
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    await onSave(counter.id, { nameEn: name, nameAr: name, isOpen });
+    await onSave(counter.id, { nameEn: name, nameAr: name, nameAm: name, isOpen });
   }
 
   return (
@@ -1192,9 +1177,11 @@ async function api<T>(path: string, init?: { method?: string; body?: unknown }):
   return (await response.json()) as T;
 }
 
-function localName(value: { nameEn: string; nameAr: string } | null | undefined, language: string) {
+function localName(value: { nameEn: string; nameAr: string; nameAm?: string } | null | undefined, language: string) {
   if (!value) return "";
-  return language === "ar" ? value.nameAr : value.nameEn;
+  if (language === "ar") return value.nameAr;
+  if (language === "am") return value.nameAm || value.nameEn;
+  return value.nameEn;
 }
 
 function pageTitle(path: string, t: TFunction) {

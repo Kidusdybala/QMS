@@ -160,6 +160,23 @@ nav a[aria-current="page"] {
   background: #155238;
 }
 
+.lang-switcher {
+  align-items: center;
+  color: #ffffff;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.lang-switcher select {
+  background: #ffffff;
+  border: 0;
+  border-radius: 6px;
+  color: #123c2c;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 8px 8px;
+}
+
 .mini-button {
   background: #eef6f0;
   color: #123c2c;
