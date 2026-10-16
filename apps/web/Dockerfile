@@ -8,8 +8,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/domain/package.json packages/domain/package.json
 COPY packages/ui/package.json packages/ui/package.json
+COPY apps/api/package.json apps/api/package.json
 
-RUN pnpm install --frozen-lockfile --dev --filter @qms/web --filter @qms/domain --filter @qms/ui
+# Install all workspace deps (including devDependencies) so typescript is available for @qms/ui build
+RUN pnpm install --frozen-lockfile
 
 COPY apps/web apps/web
 COPY packages/domain packages/domain
