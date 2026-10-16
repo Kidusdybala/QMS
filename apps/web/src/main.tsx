@@ -259,6 +259,9 @@ function LoginPanel({ onLogin }: { onLogin: (user: User) => void }) {
 function KioskPage({ branch, setMessage }: AppContext) {
   const { i18n, t } = useTranslation();
   const [createdTicket, setCreatedTicket] = useState<TicketRecord | null>(null);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
   const services = branch?.services ?? [];
   // Auto-select the single service when there is only one configured.
   const singleService = services.length === 1 ? services[0] : null;
@@ -267,12 +270,31 @@ function KioskPage({ branch, setMessage }: AppContext) {
 
   async function createTicket(serviceId: string) {
     if (!branch) return;
-    const ticket = await api<TicketRecord>("/tickets", {
-      method: "POST",
-      body: { branchId: branch.id, serviceId }
-    });
-    setCreatedTicket(ticket);
-    setMessage(t("ticketCreated", { code: ticket.code }));
+    setIsCreating(true);
+    try {
+      const ticket = await api<TicketRecord>("/tickets", {
+        method: "POST",
+        body: { branchId: branch.id, serviceId, customerName: customerName.trim() || undefined, customerPhone: customerPhone.trim() || undefined }
+      });
+      setCreatedTicket(ticket);
+      setMessage(t("ticketCreated", { code: ticket.code }));
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  function downloadReceipt() {
+    if (!createdTicket) return;
+    const receipt = buildReceiptText(t, createdTicket, singleService, branch, customerName, customerPhone, i18n.language);
+    const blob = new Blob([receipt], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `receipt-${createdTicket.code}.txt`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -280,31 +302,42 @@ function KioskPage({ branch, setMessage }: AppContext) {
       <div className="hero-panel">
         <h1>{singleService ? localName(singleService, i18n.language) : t("chooseService")}</h1>
         <p>{t("subtitle")}</p>
-        {singleService ? (
-          <div className="kiosk-get-ticket">
-            <button className="get-ticket-button" onClick={() => void createTicket(singleService.id)}>
-              {t("getTicket")}
+        <form className="customer-form" onSubmit={(event) => { event.preventDefault(); if (singleService) void createTicket(singleService.id); }}>
+          <label>
+            {t("name")}
+            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} minLength={2} placeholder={t("yourNamePlaceholder")} />
+          </label>
+          <label>
+            {t("phone")}
+            <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder={t("phonePlaceholder")} />
+          </label>
+          {singleService ? (
+            <button className="get-ticket-button" type="submit" disabled={isCreating}>
+              {isCreating ? t("creatingTicket") : t("getTicket")}
             </button>
-          </div>
-        ) : (
+          ) : null}
+        </form>
+        {!singleService ? (
           <div className="service-list kiosk-services">
             {services.map((service) => (
-              <button key={service.id} onClick={() => void createTicket(service.id)}>
+              <button key={service.id} onClick={() => void createTicket(service.id)} disabled={isCreating}>
                 <strong>{localName(service, i18n.language)}</strong>
                 <span>{service.prefix}</span>
               </button>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
       <div className="ticket-preview" aria-live="polite">
         {createdTicket ? (
           <>
             <span>{t("yourTicket")}</span>
             <strong>{createdTicket.code}</strong>
+            {customerName ? <span>{customerName}</span> : null}
             <QrPanel value={ticketUrl} label={t("scanTrackPlace")} />
             <a href={`/ticket/${createdTicket.id}`}>{t("trackTicket")}</a>
             <button className="print-button" onClick={() => window.print()}>{t("printTicket")}</button>
+            <button className="download-button" onClick={downloadReceipt}>{t("downloadReceipt")}</button>
           </>
         ) : (
           <>
@@ -322,6 +355,8 @@ function KioskPage({ branch, setMessage }: AppContext) {
             <p className="print-org">{localName(branch, i18n.language) || t("mainBranch")}</p>
             <p className="print-service-name">{localName(createdTicket.service ?? singleService, i18n.language)}</p>
             <div className="print-code">{createdTicket.code}</div>
+            {customerName ? <p className="print-customer">{customerName}</p> : null}
+            {customerPhone ? <p className="print-phone">{customerPhone}</p> : null}
             <p className="print-date">{new Date().toLocaleString()}</p>
             <p className="print-url">{ticketUrl}</p>
           </div>
@@ -1197,6 +1232,29 @@ function localName(value: { nameEn: string; nameAr: string; nameAm?: string } | 
   if (language === "ar") return value.nameAr;
   if (language === "am") return value.nameAm || value.nameEn;
   return value.nameEn;
+}
+
+function buildReceiptText(
+  t: TFunction,
+  ticket: TicketRecord,
+  service: Service | null | undefined,
+  branch: Branch | null | undefined,
+  customerName: string,
+  customerPhone: string,
+  language: string
+) {
+  const org = localName(branch, language) || "QMS";
+  const svc = localName(service, language) || ticket.service?.prefix || "";
+  const lines = [
+    org,
+    svc ? `${t("service")}: ${svc}` : "",
+    `${t("ticket")}: ${ticket.code}`,
+    customerName ? `${t("name")}: ${customerName}` : "",
+    customerPhone ? `${t("phone")}: ${customerPhone}` : "",
+    `${t("date")}: ${new Date().toLocaleString()}`,
+    `${window.location.origin}/ticket/${ticket.id}`
+  ].filter(Boolean);
+  return lines.join("\n");
 }
 
 function pageTitle(path: string, t: TFunction) {
