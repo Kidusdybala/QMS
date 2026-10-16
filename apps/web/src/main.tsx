@@ -19,6 +19,7 @@ type TicketRecord = {
   source?: "WALK_IN" | "APPOINTMENT";
   scheduledFor?: string | null;
   customerName?: string | null;
+  customerPhone?: string | null;
   service?: Service;
   counter?: Counter | null;
   events?: { status: string; note?: string }[];
@@ -294,7 +295,7 @@ function KioskPage({ branch, setMessage }: AppContext) {
 
   function downloadReceipt() {
     if (!createdTicket) return;
-    const service = services.find((s) => s.id === createdTicket.service?.id) ?? singleService;
+    const service = createdTicket.service ?? services.find((s) => s.id === createdTicket.service?.id) ?? singleService;
     const receipt = buildReceiptText(t, createdTicket, service, branch, customerName, customerPhone, i18n.language);
     const blob = new Blob([receipt], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -369,8 +370,8 @@ function KioskPage({ branch, setMessage }: AppContext) {
             <p className="print-org">{localName(branch, i18n.language) || t("mainBranch")}</p>
             <p className="print-service-name">{localName(createdTicket.service ?? singleService, i18n.language)}</p>
             <div className="print-code">{createdTicket.code}</div>
-            {customerName ? <p className="print-customer">{customerName}</p> : null}
-            {customerPhone ? <p className="print-phone">{customerPhone}</p> : null}
+            {createdTicket.customerName || customerName ? <p className="print-customer">{createdTicket.customerName || customerName}</p> : null}
+            {createdTicket.customerPhone || customerPhone ? <p className="print-phone">{createdTicket.customerPhone || customerPhone}</p> : null}
             <p className="print-date">{new Date().toLocaleString()}</p>
             <p className="print-url">{ticketUrl}</p>
           </div>
@@ -1259,12 +1260,14 @@ function buildReceiptText(
 ) {
   const org = localName(branch, language) || "QMS";
   const svc = localName(service, language) || ticket.service?.prefix || "";
+  const name = ticket.customerName || customerName || "";
+  const phone = ticket.customerPhone || customerPhone || "";
   const lines = [
     org,
     svc ? `${t("service")}: ${svc}` : "",
     `${t("ticket")}: ${ticket.code}`,
-    customerName ? `${t("name")}: ${customerName}` : "",
-    customerPhone ? `${t("phone")}: ${customerPhone}` : "",
+    name ? `${t("name")}: ${name}` : "",
+    phone ? `${t("phone")}: ${phone}` : "",
     `${t("date")}: ${new Date().toLocaleString()}`,
     `${window.location.origin}/ticket/${ticket.id}`
   ].filter(Boolean);
