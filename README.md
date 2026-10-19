@@ -1,15 +1,78 @@
 # Queue Management System
 
-[![CI](https://github.com/qtrcipher/queue-management-system/actions/workflows/ci.yml/badge.svg)](https://github.com/qtrcipher/queue-management-system/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+### A simpler queue for one location.
 
-Queue Management System is open-source queue management for a single physical location with physical and virtual queues. It includes kiosk check-in, staff counter workflows, public displays, QR/web joining, and Arabic/English support.
+QMS helps your team serve visitors with **one General Service**, multiple counters, and a clear live display. Visitors can join at the kiosk or online, while staff manage the queue from one shared system.
 
-## Status
+[![CI](https://img.shields.io/github/actions/workflow/status/Kidusdybala/QMS/ci.yml?branch=main&label=build&logo=github&logoColor=white)](https://github.com/Kidusdybala/QMS/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-2ea44f?logo=apache)](LICENSE)
+[![Languages](https://img.shields.io/badge/languages-English%20%7C%20Arabic%20%7C%20Amharic-7357c8)](#languages)
+[![Queue setup](https://img.shields.io/badge/setup-1%20location%20%7C%201%20service-168aad)](#what-you-get)
 
-This repository is an early public MVP scaffold. It includes a working TypeScript monorepo, NestJS API, React/Vite web app, Prisma schema, Docker Compose services, seed data, and project governance files.
+---
 
-## Development Quick Start
+## ✨ What you get
+
+| | Feature | What it does |
+|---|---|---|
+| 🎟️ | **General Service** | One straightforward service for every walk-in visitor |
+| 🧍 | **Kiosk and web joining** | Issue a ticket in person or join from a phone |
+| 🖥️ | **Live display** | Show called tickets and counters with a large live date and clock |
+| 👩‍💼 | **Staff queue tools** | Call, recall, start, complete, requeue, cancel, and mark no-shows |
+| 📅 | **Appointments** | Schedule visits for the General Service |
+| 📊 | **Analytics** | Review queue volumes, wait times, service times, and export CSV data |
+| 🔔 | **Notifications** | Configure email and optional SMS or WhatsApp providers |
+| 🌐 | **Three languages** | Switch between English, العربية, and አማርኛ, with RTL support for Arabic |
+
+## 🚀 Run with Docker
+
+You need Docker Desktop with Docker Compose enabled.
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+Open the app and supporting tools:
+
+| App | Address |
+|---|---|
+| QMS | <http://localhost:8080> |
+| API health | <http://localhost:3000/health> |
+| Mailpit inbox | <http://localhost:8025> |
+
+The development Compose setup creates the database schema and seed records automatically. Check service status with `docker compose ps`; stop the app with `docker compose down`.
+
+### Development login
+
+The seed creates a demo administrator:
+
+| Email | Password |
+|---|---|
+| `admin@example.com` | `admin12345` |
+
+These credentials are for local development only. Set a strong `SESSION_SECRET` and replace demo credentials before deploying anywhere public.
+
+## 🧭 Main pages
+
+| Page | Address | Use |
+|---|---|---|
+| Kiosk | `/kiosk` | Create a General Service ticket |
+| Staff | `/staff` | Call and manage waiting tickets |
+| Display | `/display` | Show called tickets, counters, date, and time |
+| Admin | `/admin` | Manage counters, users, appointments, notifications, and retention |
+| Join online | `/join/main` | Join the queue from a phone |
+| Ticket status | `/ticket/:id` | Check a ticket’s queue position and estimated wait |
+
+The protected analytics endpoints are `/analytics/summary` and `/analytics/tickets.csv`. They accept optional `start` and `end` date filters.
+
+## 🌐 Languages
+
+Choose English, العربية, or አማርኛ from the header. Arabic switches the interface to right-to-left layout.
+
+## 🛠️ Local development
+
+Install [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/), then start the database, cache, and mail preview service:
 
 ```bash
 cp .env.example .env
@@ -21,78 +84,38 @@ pnpm db:seed
 pnpm dev
 ```
 
-- Web app: http://localhost:5173
-- API health: http://localhost:3000/health
-- Mailpit: http://localhost:8025
+The web app runs at <http://localhost:5173> and the API at <http://localhost:3000>.
 
-## Full Docker Quick Start
+## 🧰 Built with
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
+| Layer | Technology |
+|---|---|
+| Web | React, TypeScript, Vite |
+| API | NestJS, TypeScript |
+| Data | PostgreSQL, Prisma |
+| Live updates | WebSockets and Redis |
+| Local services | Docker Compose |
 
-- Web app: http://localhost:8080
-- API health: http://localhost:3000/health
-- Mailpit: http://localhost:8025
-
-The local Compose file explicitly sets `QMS_AUTO_DB_SYNC=true`, so the API container applies the Prisma schema and loads seed data on startup for development. Use `docker compose ps` to confirm `api`, `web`, `postgres`, and `redis` are healthy or running before testing browser flows. Replace development secrets in `.env` before any production deployment.
-
-Useful web routes:
-
-- `/kiosk`: touch-first ticket creation
-- `/staff`: staff queue controls
-- `/display`: public waiting-room display
-- `/admin`: location, service, and counter setup
-- `/join/main`: customer QR join flow for the seeded branch
-- `/ticket/:id`: customer ticket status, position, and ETA
-- `/analytics/summary`: protected operational analytics API with optional `start` and `end` filters
-- `/analytics/tickets.csv`: protected ticket CSV export with the same date filters
-
-Seed admin:
-
-- Email: `admin@example.com`
-- Password: `admin12345`
-
-## Features
-
-- Single-location queue with one General Service and multiple counters
-- Kiosk ticket creation, appointment scheduling, and QR/web join flow
-- QR ticket tracking with queue position and estimated wait time
-- Protected staff actions: counter selection, call next, recall, start, complete, no-show, requeue, cancel, transfer
-- Role-based access control for owners, admins, branch managers, agents, and display users
-- Admin creation and editing for services, counters, user roles, and appointments
-- Basic analytics for issued tickets, completion/no-show rates, wait time, service time, date filtering, and CSV export
-- Configurable ticket retention and manual purge for old terminal tickets
-- Public display state and customer ticket tracking
-- Built-in email/password session auth with httpOnly cookies
-- WebSocket queue updates
-- Arabic/English UI with RTL/LTR direction switching
-- SMTP email provider plus mock, webhook, or disabled SMS/WhatsApp provider plugins
-- Audit and ticket event history foundation
-
-## Repository Layout
+## 🗂️ Repository layout
 
 ```text
-apps/api      NestJS API, Prisma schema, seed data
-apps/web      React + Vite single-page app
-packages/domain  Shared queue types and state helpers
-packages/ui       Shared UI primitives
-infra         Deployment, backup, restore, and operations notes
-research      Product research references
+apps/api       NestJS API, Prisma schema, and seed data
+apps/web       React and Vite interface
+packages/domain  Shared queue types and logic
+packages/ui      Shared UI components
+infra          Deployment and operations guides
+research       Product research
 ```
 
-Operational guides:
+## 📚 Guides
 
-- [Infrastructure](infra/README.md)
-- [Production Deployment](infra/production.md)
-- [Public Demo Environment](infra/demo.md)
-- [Backup and Restore](infra/backup-restore.md)
+- [Infrastructure and Docker Compose](infra/README.md)
+- [Production deployment](infra/production.md)
+- [Public demo environment](infra/demo.md)
+- [Backup and restore](infra/backup-restore.md)
+- [Roadmap](ROADMAP.md)
+- [Contributing](CONTRIBUTING.md)
 
-## Community
+## 📄 License
 
-QMS is maintained as an open-source project under Apache-2.0. Contributions use DCO signoff instead of a CLA. See [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), and [ROADMAP.md](ROADMAP.md).
-
-## License
-
-Apache-2.0. See [LICENSE](LICENSE).
+QMS is licensed under the [Apache License 2.0](LICENSE).
