@@ -50,6 +50,7 @@ model Branch {
   organizationId String
   nameEn         String
   nameAr         String
+  nameAm         String           @default("")
   slug           String           @unique
   createdAt      DateTime         @default(now())
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -64,6 +65,7 @@ model Service {
   branchId  String
   nameEn    String
   nameAr    String
+  nameAm    String           @default("")
   prefix    String
   isActive  Boolean          @default(true)
   branch    Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -78,6 +80,7 @@ model Counter {
   branchId String
   nameEn   String
   nameAr   String
+  nameAm   String   @default("")
   isOpen   Boolean  @default(true)
   branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   tickets  Ticket[]

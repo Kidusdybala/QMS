@@ -163,16 +163,11 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
     { href: "/admin", label: t("admin"), active: path.startsWith("/admin") }
   ];
 
-  const [pendingLanguage, setPendingLanguage] = useState<string>(i18n.language);
   const languageOptions: { value: string; label: string }[] = [
     { value: "en", label: "English" },
     { value: "ar", label: "العربية" },
     { value: "am", label: "አማርኛ" }
   ];
-
-  useEffect(() => {
-    setPendingLanguage(i18n.language);
-  }, [i18n.language]);
 
   return (
     <header className="app-shell">
@@ -196,21 +191,14 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
             <button
               key={option.value}
               type="button"
-              className={`lang-option ${pendingLanguage === option.value ? "is-active" : ""}`}
-              aria-pressed={pendingLanguage === option.value}
-              onClick={() => setPendingLanguage(option.value)}
+              className={`lang-option ${i18n.language === option.value ? "is-active" : ""}`}
+              aria-pressed={i18n.language === option.value}
+              lang={option.value}
+              onClick={() => onLanguage(option.value)}
             >
               {option.label}
             </button>
           ))}
-          <button
-            type="button"
-            className="lang-apply primary-button"
-            onClick={() => onLanguage(pendingLanguage)}
-            disabled={pendingLanguage === i18n.language}
-          >
-            {t("apply")}
-          </button>
         </div>
       </div>
     </header>
@@ -312,7 +300,6 @@ function KioskPage({ branch, setMessage }: AppContext) {
     <section className="page-grid kiosk-layout">
       <div className="hero-panel">
         <h1>{singleService ? localName(singleService, i18n.language) : t("chooseService")}</h1>
-        <p>{t("subtitle")}</p>
         <form className="customer-form" onSubmit={(event) => { event.preventDefault(); void createTicket(); }}>
           <label>
             {t("name")}
@@ -451,13 +438,26 @@ function StaffPage(context: AppContext) {
 
 function DisplayPage({ branch, snapshot }: AppContext) {
   const { i18n, t } = useTranslation();
+  const [now, setNow] = useState(() => new Date());
   const activeTickets = [...snapshot.called, ...snapshot.serving].slice(0, 8);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <section className="display-screen" aria-live="polite">
-      <div>
+      <div className="display-header">
         <h1>{localName(branch, i18n.language) || t("display")}</h1>
-        <p>{new Date().toLocaleTimeString()}</p>
+        <div className="display-clock" aria-label={`${now.toLocaleDateString(i18n.language)} ${now.toLocaleTimeString(i18n.language)}`}>
+          <time className="display-date" dateTime={now.toISOString()}>
+            {now.toLocaleDateString(i18n.language, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          </time>
+          <time className="display-time" dateTime={now.toISOString()}>
+            {now.toLocaleTimeString(i18n.language, { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+          </time>
+        </div>
       </div>
       <div className="display-board">
         {activeTickets.map((ticket) => (
@@ -476,14 +476,9 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
   const { i18n, t } = useTranslation();
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
-  const [branchName, setBranchName] = useState("");
-  const [branchSlug, setBranchSlug] = useState("");
   const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [analyticsBranchId, setAnalyticsBranchId] = useState("");
   const [analyticsStart, setAnalyticsStart] = useState(todayInputValue());
   const [analyticsEnd, setAnalyticsEnd] = useState(todayInputValue());
-  const [serviceName, setServiceName] = useState("");
-  const [servicePrefix, setServicePrefix] = useState("");
   const [counterName, setCounterName] = useState("");
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -511,8 +506,8 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
 
   const branches = overview?.organization?.branches ?? [];
   const analyticsQuery = useMemo(() => {
-    return analyticsQueryString(analyticsBranchId, analyticsStart, analyticsEnd);
-  }, [analyticsBranchId, analyticsEnd, analyticsStart]);
+    return analyticsQueryString("", analyticsStart, analyticsEnd);
+  }, [analyticsEnd, analyticsStart]);
   const analyticsPath = `/analytics/summary${analyticsQuery ? `?${analyticsQuery}` : ""}`;
   const analyticsCsvPath = `${apiBase}/analytics/tickets.csv${analyticsQuery ? `?${analyticsQuery}` : ""}`;
 
@@ -552,31 +547,6 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
     const nextBranch = nextBranches.find((branch) => branch.id === nextBranchId) ?? nextBranches[0] ?? null;
     setSelectedBranchId(nextBranch?.id ?? "");
     setBranch(nextBranch);
-  }
-
-  async function createBranch(event: FormEvent) {
-    event.preventDefault();
-    const created = await api<Branch>("/admin/branches", {
-      method: "POST",
-      body: { nameEn: branchName, nameAr: branchName, nameAm: branchName, slug: branchSlug }
-    });
-    setBranchName("");
-    setBranchSlug("");
-    setMessage(t("branchCreated"));
-    await loadAdmin(created.id);
-  }
-
-  async function createService(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedBranch) return;
-    await api<Service>(`/admin/branches/${selectedBranch.id}/services`, {
-      method: "POST",
-      body: { nameEn: serviceName, nameAr: serviceName, nameAm: serviceName, prefix: servicePrefix.toUpperCase() }
-    });
-    setServiceName("");
-    setServicePrefix("");
-    setMessage(t("serviceCreated"));
-    await loadAdmin(selectedBranch.id);
   }
 
   async function createCounter(event: FormEvent) {
@@ -663,21 +633,13 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
     setNotificationSettings((current) => ({ ...current, [key]: value }));
   }
 
-  function changeManagedBranch(branchId: string) {
-    const nextBranch = branches.find((branch) => branch.id === branchId) ?? null;
-    setSelectedBranchId(branchId);
-    setBranch(nextBranch);
-  }
-
   async function applyAnalyticsFilters(event: FormEvent) {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
-    const branchId = String(formData.get("analyticsBranchId") ?? "");
     const start = String(formData.get("analyticsStart") ?? "");
     const end = String(formData.get("analyticsEnd") ?? "");
-    const query = analyticsQueryString(branchId, start, end);
-    setAnalyticsBranchId(branchId);
+    const query = analyticsQueryString("", start, end);
     setAnalyticsStart(start);
     setAnalyticsEnd(end);
     const data = await api<AnalyticsSummary>(`/analytics/summary${query ? `?${query}` : ""}`);
@@ -690,15 +652,6 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
       <h1 className="sr-only">{t("admin")}</h1>
       <Panel title={t("today")} icon={<BarChart3 size={18} />}>
         <form className="analytics-filters" onSubmit={(event) => void applyAnalyticsFilters(event)}>
-          <label>
-            {t("analyticsBranch")}
-            <select name="analyticsBranchId" value={analyticsBranchId} onChange={(event) => setAnalyticsBranchId(event.target.value)}>
-              <option value="">{t("allBranches")}</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{localName(branch, i18n.language)}</option>
-              ))}
-            </select>
-          </label>
           <label>
             {t("startDate")}
             <input type="date" name="analyticsStart" value={analyticsStart} onChange={(event) => setAnalyticsStart(event.target.value)} />
@@ -716,37 +669,6 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
           <Metric label={t("noShow")} value={`${analytics?.totals.noShowRate ?? 0}%`} />
           <Metric label={t("avgWait")} value={`${analytics?.totals.averageWaitMinutes ?? 0}m`} />
           <Metric label={t("avgService")} value={`${analytics?.totals.averageServiceMinutes ?? 0}m`} />
-        </div>
-        <div className="branch-dashboard" aria-label={t("branchDashboard")}>
-          <div className="dashboard-header">
-            <strong>{t("branchDashboard")}</strong>
-            <span>{t("branchesCount", { count: analytics?.branchDashboard.length ?? 0 })}</span>
-          </div>
-          <div className="dashboard-table" role="table" aria-label={t("branchDashboard")}>
-            <div className="dashboard-row dashboard-heading" role="row">
-              <span role="columnheader">{t("branch")}</span>
-              <span role="columnheader">{t("issued")}</span>
-              <span role="columnheader">{t("waiting")}</span>
-              <span role="columnheader">{t("servingColumn")}</span>
-              <span role="columnheader">{t("completed")}</span>
-              <span role="columnheader">{t("openCounters")}</span>
-              <span role="columnheader">{t("avgWait")}</span>
-            </div>
-            {analytics?.branchDashboard.map((row) => (
-              <div className="dashboard-row" role="row" key={row.branchId}>
-                <span role="cell">
-                  <strong>{localName(row, i18n.language)}</strong>
-                  <small>/{row.slug}</small>
-                </span>
-                <span role="cell">{row.issued}</span>
-                <span role="cell">{row.waiting}</span>
-                <span role="cell">{row.serving}</span>
-                <span role="cell">{row.completed}</span>
-                <span role="cell">{row.openCounters}</span>
-                <span role="cell">{row.averageWaitMinutes}m</span>
-              </div>
-            ))}
-          </div>
         </div>
         <a className="download-link" href={analyticsCsvPath}>
           <Download size={16} />
@@ -847,51 +769,21 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
           <button className="primary-button">{t("saveNotifications")}</button>
         </form>
       </Panel>
-      <Panel title={t("branches")} icon={<Building2 size={18} />}>
+      <Panel title={t("location")} icon={<Building2 size={18} />}>
         <div className="table-list">
-          {branches.map((branch) => (
-            <div key={branch.id}>
-              <strong>{localName(branch, i18n.language)}</strong>
-              <span>/{branch.slug}</span>
-            </div>
-          ))}
+          {selectedBranch ? <div><strong>{localName(selectedBranch, i18n.language)}</strong><span>/{selectedBranch.slug}</span></div> : <EmptyState label={t("noBranchConfigured")} />}
         </div>
-        {branches.length ? (
-          <label className="branch-selector">
-            {t("manageBranch")}
-            <select value={selectedBranch?.id ?? ""} onChange={(event) => changeManagedBranch(event.target.value)}>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{localName(branch, i18n.language)}</option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <form onSubmit={(event) => void createBranch(event)} className="form-grid">
-          <label>{t("branchName")}<input value={branchName} onChange={(event) => setBranchName(event.target.value)} required /></label>
-          <label>{t("slug")}<input value={branchSlug} onChange={(event) => setBranchSlug(event.target.value)} pattern="[a-z0-9-]+" required /></label>
-          <button className="primary-button">{t("addBranch")}</button>
-        </form>
       </Panel>
       <Panel title={t("services")} icon={<Ticket size={18} />}>
         <div className="record-list">
           {selectedBranch?.services.map((service) => (
-            <ServiceEditor
-              key={service.id}
-              service={service}
-              issued={analytics?.services.find((row) => row.serviceId === service.id)?.issued ?? 0}
-              onSave={async (serviceId, body) => {
-                await api<Service>(`/admin/services/${serviceId}`, { method: "PATCH", body });
-                setMessage(t("serviceUpdated"));
-                await loadAdmin(selectedBranch.id);
-              }}
-            />
+            <div key={service.id} className="record-row">
+              <div className="record-meta"><strong>{service.prefix}</strong><span>{t("generalService")}</span></div>
+              <strong>{localName(service, i18n.language)}</strong>
+              <span>{t("issuedCount", { count: analytics?.services.find((row) => row.serviceId === service.id)?.issued ?? 0 })}</span>
+            </div>
           ))}
         </div>
-        <form onSubmit={(event) => void createService(event)} className="form-grid inline-form">
-          <label>{t("name")}<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
-          <label>{t("prefix")}<input value={servicePrefix} onChange={(event) => setServicePrefix(event.target.value.toUpperCase())} pattern="[A-Z0-9]{1,4}" required /></label>
-          <button className="primary-button">{t("addService")}</button>
-        </form>
       </Panel>
       <Panel title={t("counters")} icon={<Monitor size={18} />}>
         <div className="record-list">
@@ -943,40 +835,6 @@ function AdminPage({ user, setUser, setBranch, setMessage }: AppContext) {
         </form>
       </Panel>
     </section>
-  );
-}
-
-function ServiceEditor({ service, issued, onSave }: { service: Service; issued: number; onSave: (serviceId: string, body: { nameEn: string; nameAr: string; nameAm: string; isActive: boolean }) => Promise<void> }) {
-  const { t } = useTranslation();
-  const [name, setName] = useState(service.nameEn);
-  const [isActive, setIsActive] = useState(service.isActive !== false);
-
-  useEffect(() => {
-    setName(service.nameEn);
-    setIsActive(service.isActive !== false);
-  }, [service]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    await onSave(service.id, { nameEn: name, nameAr: name, nameAm: name, isActive });
-  }
-
-  return (
-    <form className="record-row" aria-label={t("editService", { prefix: service.prefix })} onSubmit={(event) => void submit(event)}>
-      <div className="record-meta">
-        <strong>{service.prefix}</strong>
-        <span>{t("issuedCount", { count: issued })}</span>
-      </div>
-      <label>
-        {t("name")}
-        <input value={name} onChange={(event) => setName(event.target.value)} minLength={2} required />
-      </label>
-      <label className="check-row">
-        <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} />
-        {t("active")}
-      </label>
-      <button className="primary-button">{t("save")}</button>
-    </form>
   );
 }
 

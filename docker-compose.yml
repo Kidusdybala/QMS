@@ -9,7 +9,7 @@ services:
       DATABASE_URL: postgresql://qms:qms@postgres:5432/qms?schema=public
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
-      WEB_ORIGIN: http://localhost:8080
+      WEB_ORIGIN: http://localhost:5173
       QMS_AUTO_DB_SYNC: "true"
     ports:
       - "3000:3000"

@@ -27,31 +27,45 @@ async function main() {
       organizationId: organization.id,
       slug: "main",
       nameEn: "Main Branch",
-      nameAr: "الفرع الرئيسي"
+      nameAr: "الفرع الرئيسي",
+      nameAm: "ዋና ቅርንጫፍ"
     }
   });
 
-  await prisma.service.upsert({
+  // This deployment offers one service: General Service.
+  const generalService = await prisma.service.upsert({
     where: { branchId_prefix: { branchId: branch.id, prefix: "A" } },
-    update: {},
+    update: {
+      nameEn: "General Service",
+      nameAr: "الخدمة العامة",
+      nameAm: "ጠቅላላ አገልግሎት",
+      isActive: true
+    },
     create: {
       branchId: branch.id,
       nameEn: "General Service",
       nameAr: "الخدمة العامة",
+      nameAm: "ጠቅላላ አገልግሎት",
       prefix: "A"
     }
+  });
+
+  // Keep older service records for their ticket history, but disable them.
+  await prisma.service.updateMany({
+    where: { branchId: branch.id, id: { not: generalService.id } },
+    data: { isActive: false }
   });
 
   await prisma.counter.upsert({
     where: { branchId_nameEn: { branchId: branch.id, nameEn: "Counter 1" } },
     update: {},
-    create: { branchId: branch.id, nameEn: "Counter 1", nameAr: "الكاونتر ١" }
+    create: { branchId: branch.id, nameEn: "Counter 1", nameAr: "الكاونتر ١", nameAm: "ቆጣሪ ፩" }
   });
 
   await prisma.counter.upsert({
     where: { branchId_nameEn: { branchId: branch.id, nameEn: "Counter 2" } },
     update: {},
-    create: { branchId: branch.id, nameEn: "Counter 2", nameAr: "الكاونتر ٢" }
+    create: { branchId: branch.id, nameEn: "Counter 2", nameAr: "الكاونتر ٢", nameAm: "ቆጣሪ ፪" }
   });
 
   await prisma.user.upsert({

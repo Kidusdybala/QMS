@@ -3,7 +3,7 @@
 [![CI](https://github.com/qtrcipher/queue-management-system/actions/workflows/ci.yml/badge.svg)](https://github.com/qtrcipher/queue-management-system/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Queue Management System is open-source queue management for physical and virtual queues. It is built for self-hosted branches that need kiosk check-in, staff counter workflows, public displays, QR/web joining, and Arabic/English support.
+Queue Management System is open-source queue management for a single physical location with physical and virtual queues. It includes kiosk check-in, staff counter workflows, public displays, QR/web joining, and Arabic/English support.
 
 ## Status
 
@@ -43,11 +43,11 @@ Useful web routes:
 - `/kiosk`: touch-first ticket creation
 - `/staff`: staff queue controls
 - `/display`: public waiting-room display
-- `/admin`: branch, service, and counter setup
+- `/admin`: location, service, and counter setup
 - `/join/main`: customer QR join flow for the seeded branch
 - `/ticket/:id`: customer ticket status, position, and ETA
-- `/analytics/summary`: protected operational analytics API with optional `start`, `end`, and `branchId` filters
-- `/analytics/tickets.csv`: protected ticket CSV export with the same filters
+- `/analytics/summary`: protected operational analytics API with optional `start` and `end` filters
+- `/analytics/tickets.csv`: protected ticket CSV export with the same date filters
 
 Seed admin:
 
@@ -56,13 +56,13 @@ Seed admin:
 
 ## Features
 
-- Multi-branch, multi-service, multi-counter queue model
+- Single-location queue with one General Service and multiple counters
 - Kiosk ticket creation, appointment scheduling, and QR/web join flow
 - QR ticket tracking with queue position and estimated wait time
 - Protected staff actions: counter selection, call next, recall, start, complete, no-show, requeue, cancel, transfer
 - Role-based access control for owners, admins, branch managers, agents, and display users
 - Admin creation and editing for services, counters, user roles, and appointments
-- Basic analytics for issued tickets, completion/no-show rates, wait time, service time, branch/date filtering, multi-branch dashboards, and CSV export
+- Basic analytics for issued tickets, completion/no-show rates, wait time, service time, date filtering, and CSV export
 - Configurable ticket retention and manual purge for old terminal tickets
 - Public display state and customer ticket tracking
 - Built-in email/password session auth with httpOnly cookies

@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, ConflictException, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { UserRole } from "@prisma/client";
 import { hash } from "argon2";
 import { IsBoolean, IsEmail, IsEnum, IsInt, IsISO8601, IsOptional, IsString, Matches, Max, Min, MinLength } from "class-validator";
@@ -20,36 +20,12 @@ class CreateBranchDto {
   nameAr!: string;
 
   @IsString()
+  @IsOptional()
+  nameAm?: string;
+
+  @IsString()
   @Matches(/^[a-z0-9-]+$/)
   slug!: string;
-}
-
-class CreateServiceDto {
-  @IsString()
-  @MinLength(2)
-  nameEn!: string;
-
-  @IsString()
-  @MinLength(2)
-  nameAr!: string;
-
-  @IsString()
-  @Matches(/^[A-Z0-9]{1,4}$/)
-  prefix!: string;
-}
-
-class UpdateServiceDto {
-  @IsString()
-  @IsOptional()
-  nameEn?: string;
-
-  @IsString()
-  @IsOptional()
-  nameAr?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
 }
 
 class CreateCounterDto {
@@ -60,6 +36,10 @@ class CreateCounterDto {
   @IsString()
   @MinLength(2)
   nameAr!: string;
+
+  @IsString()
+  @IsOptional()
+  nameAm?: string;
 }
 
 class UpdateCounterDto {
@@ -70,6 +50,10 @@ class UpdateCounterDto {
   @IsString()
   @IsOptional()
   nameAr?: string;
+
+  @IsString()
+  @IsOptional()
+  nameAm?: string;
 
   @IsBoolean()
   @IsOptional()
@@ -188,7 +172,7 @@ export class AdminController {
         branches: {
           include: {
             counters: { orderBy: { nameEn: "asc" } },
-            services: { orderBy: { prefix: "asc" } }
+            services: { where: { isActive: true }, orderBy: { prefix: "asc" } }
           },
           orderBy: { nameEn: "asc" }
         },
@@ -216,8 +200,10 @@ export class AdminController {
   @Post("branches")
   async createBranch(@CurrentUser() actor: SessionUser, @Body() body: CreateBranchDto) {
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: actor.organizationId } });
+    const existingBranch = await this.prisma.branch.findFirst({ where: { organizationId: organization.id }, select: { id: true } });
+    if (existingBranch) throw new ConflictException("This organization supports one location");
     return this.prisma.branch.create({
-      data: { organizationId: organization.id, nameEn: body.nameEn, nameAr: body.nameAr, slug: body.slug },
+      data: { organizationId: organization.id, nameEn: body.nameEn, nameAr: body.nameAr, nameAm: body.nameAm ?? "", slug: body.slug },
       include: { counters: true, services: true }
     });
   }
@@ -283,23 +269,37 @@ export class AdminController {
   }
 
   @Post("branches/:branchId/services")
-  async createService(@CurrentUser() actor: SessionUser, @Param("branchId") branchId: string, @Body() body: CreateServiceDto) {
+  async createService(@CurrentUser() actor: SessionUser, @Param("branchId") branchId: string) {
     await this.assertBranchInOrganization(branchId, actor.organizationId);
+    const existingService = await this.prisma.service.findFirst({ where: { branchId }, select: { id: true } });
+    if (existingService) throw new ConflictException("This location supports one general service");
     return this.prisma.service.create({
-      data: { branchId, nameEn: body.nameEn, nameAr: body.nameAr, prefix: body.prefix.toUpperCase() }
+      data: { branchId, nameEn: "General Service", nameAr: "الخدمة العامة", nameAm: "ጠቅላላ አገልግሎት", prefix: "A" }
     });
   }
 
   @Patch("services/:serviceId")
-  async updateService(@CurrentUser() actor: SessionUser, @Param("serviceId") serviceId: string, @Body() body: UpdateServiceDto) {
-    await this.assertServiceInOrganization(serviceId, actor.organizationId);
-    return this.prisma.service.update({ where: { id: serviceId }, data: body });
+  async updateService(@CurrentUser() actor: SessionUser, @Param("serviceId") serviceId: string) {
+    const service = await this.prisma.service.findFirst({
+      where: { id: serviceId, prefix: "A", branch: { organizationId: actor.organizationId } },
+      select: { id: true }
+    });
+    if (!service) throw new NotFoundException("General Service not found");
+    return this.prisma.service.update({
+      where: { id: service.id },
+      data: {
+        nameEn: "General Service",
+        nameAr: "الخدمة العامة",
+        nameAm: "ጠቅላላ አገልግሎት",
+        isActive: true
+      }
+    });
   }
 
   @Post("branches/:branchId/counters")
   async createCounter(@CurrentUser() actor: SessionUser, @Param("branchId") branchId: string, @Body() body: CreateCounterDto) {
     await this.assertBranchInOrganization(branchId, actor.organizationId);
-    return this.prisma.counter.create({ data: { branchId, nameEn: body.nameEn, nameAr: body.nameAr } });
+    return this.prisma.counter.create({ data: { branchId, nameEn: body.nameEn, nameAr: body.nameAr, nameAm: body.nameAm ?? "" } });
   }
 
   @Patch("counters/:counterId")

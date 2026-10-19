@@ -11,7 +11,7 @@ COPY packages/ui/package.json packages/ui/package.json
 COPY apps/api/package.json apps/api/package.json
 
 # Install all workspace deps (including devDependencies) so typescript is available for @qms/ui build
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prod=false
 
 COPY apps/web apps/web
 COPY packages/domain packages/domain
