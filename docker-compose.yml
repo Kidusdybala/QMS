@@ -9,7 +9,7 @@ services:
       DATABASE_URL: postgresql://qms:qms@postgres:5432/qms?schema=public
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
-      WEB_ORIGIN: http://localhost:5173
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
       QMS_AUTO_DB_SYNC: "true"
     ports:
       - "3000:3000"
@@ -26,11 +26,11 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_API_BASE: http://localhost:3000
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:3000}
     ports:
       - "8080:80"
     environment:
-      QMS_API_CONNECT_SRC: "'self' http://localhost:3000 ws://localhost:3000"
+      QMS_API_CONNECT_SRC: ${QMS_API_CONNECT_SRC:-'self' http://localhost:3000 ws://localhost:3000}
     depends_on:
       api:
         condition: service_healthy

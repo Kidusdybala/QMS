@@ -162,6 +162,7 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
     { href: "/display", label: t("display"), active: path.startsWith("/display") },
     { href: "/admin", label: t("admin"), active: path.startsWith("/admin") }
   ];
+  const visibleNavItems = user ? navItems : navItems.filter((item) => item.href !== "/staff" && item.href !== "/admin");
 
   const languageOptions: { value: string; label: string }[] = [
     { value: "en", label: "English" },
@@ -176,7 +177,7 @@ function Shell({ user, branch, path, onLanguage }: { user: User | null; branch: 
         <span>QMS</span>
       </a>
       <nav aria-label={t("primaryNav")}>
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <a key={item.href} href={item.href} aria-current={item.active ? "page" : undefined}>
             {item.label}
           </a>

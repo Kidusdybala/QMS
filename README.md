@@ -43,6 +43,33 @@ Open the app and supporting tools:
 
 The development Compose setup creates the database schema and seed records automatically. Check service status with `docker compose ps`; stop the app with `docker compose down`.
 
+### Use the kiosk, display, and staff PCs together
+
+Run Docker on one PC connected to the same trusted local network as the kiosk, display, and staff/admin PCs. Find that host PC's LAN address (for example, `192.168.1.20`), then set these values in `.env`:
+
+```dotenv
+WEB_ORIGIN=http://192.168.1.20:8080
+VITE_API_BASE=http://192.168.1.20:3000
+QMS_API_CONNECT_SRC='self' http://192.168.1.20:3000 ws://192.168.1.20:3000
+```
+
+Rebuild and start the containers after changing the address, because the web app's API address is set during its image build:
+
+```bash
+docker compose up --build -d
+```
+
+On each device, open the host PC's address, not `localhost`:
+
+| Device | Page |
+|---|---|
+| Customer kiosk | `http://192.168.1.20:8080/kiosk` |
+| Public queue display | `http://192.168.1.20:8080/display` |
+| Staff PC | `http://192.168.1.20:8080/staff` |
+| Admin PC | `http://192.168.1.20:8080/admin` |
+
+Replace `192.168.1.20` with the host PC's actual LAN address. Allow inbound TCP ports 8080 and 3000 through that PC's firewall on the private network. Keep the kiosk signed out, configure Windows/Edge kiosk mode to launch the `/kiosk` URL, and use staff/admin pages from staff PCs with individual accounts. Staff and admin pages require sign-in, and privileged API actions check the account role. Do not expose these development Compose ports directly to the public internet.
+
 ### Development login
 
 The seed creates a demo administrator:
